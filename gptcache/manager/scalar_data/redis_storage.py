@@ -298,7 +298,7 @@ class RedisCacheStorage(CacheStorage):
             pipeline.execute()
         return ids
 
-    def get_data_by_id(self, key: str):
+    def get_data_by_id(self, key: str, user_id: int = None):
         key = str(key)
         try:
             qs = self._ques.get(pk=key)
@@ -386,7 +386,7 @@ class RedisCacheStorage(CacheStorage):
             pipeline.execute()
 
     def report_cache(self, user_question, cache_question, cache_question_id, cache_answer, similarity_value,
-                     cache_delta_time):
+                     cache_delta_time, user_id):
         self._report(
             user_question=user_question,
             cache_question=cache_question,
@@ -395,6 +395,7 @@ class RedisCacheStorage(CacheStorage):
             similarity=similarity_value,
             cache_delta_time=cache_delta_time,
             cache_time=datetime.datetime.utcnow(),
+            user_id=user_id
         ).save()
 
     def close(self):

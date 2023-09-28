@@ -30,11 +30,12 @@ class Client:
     def __init__(self, uri: str = "http://localhost:8000"):
         self._uri = uri
 
-    async def _put(self, question: str, answer: str):
+    async def _put(self, question: str, answer: str, user_id: int):
         async with httpx.AsyncClient() as client:
             data = {
                 "prompt": question,
                 "answer": answer,
+                "user_id": user_id
             }
 
             response = await client.post(
@@ -43,10 +44,11 @@ class Client:
 
         return response.status_code
 
-    async def _get(self, question: str):
+    async def _get(self, question: str, user_id: int):
         async with httpx.AsyncClient() as client:
             data = {
                 "prompt": question,
+                "user_id": user_id
             }
 
             response = await client.post(
@@ -55,20 +57,24 @@ class Client:
 
         return response.json().get("answer")
 
-    def put(self, question: str, answer: str):
+    def put(self, question: str, answer: str, user_id: int):
         """
         :param question: the question to be put.
         :type question: str
         :param answer: the answer to the question to be put.
         :type answer: str
+        :param user_id: the user_id to be put.
+        :type user_id: str
         :return: status code.
         """
-        return asyncio.run(self._put(question, answer))
+        return asyncio.run(self._put(question, answer, user_id))
 
-    def get(self, question: str):
+    def get(self, question: str, user_id: int):
         """
         :param question: the question to get an answer.
         :type question: str
+        :param user_id: the user_id to get an answer.
+        :type user_id: int
         :return: answer to the question.
         """
-        return asyncio.run(self._get(question))
+        return asyncio.run(self._get(question, user_id))

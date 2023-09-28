@@ -148,7 +148,7 @@ class DynamoStorage(CacheStorage):
                     )
         return ids
 
-    def get_data_by_id(self, key: str) -> Optional[CacheData]:
+    def get_data_by_id(self, key: str, user_id: int = None) -> Optional[CacheData]:
         table = self._dynamo.Table("gptcache_questions")
         table.wait_until_exists()
 
@@ -394,6 +394,7 @@ class DynamoStorage(CacheStorage):
         cache_answer,
         similarity_value,
         cache_delta_time,
+        user_id
     ):
         table = self._dynamo.Table("gptcache_reports")
         table.wait_until_exists()
@@ -412,6 +413,7 @@ class DynamoStorage(CacheStorage):
                     else similarity_value
                 ),
                 "cache_delta_time": Decimal(str(cache_delta_time)),
+                "user_id": user_id
             }
         )
 

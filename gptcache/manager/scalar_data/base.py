@@ -69,6 +69,7 @@ class CacheData:
     session_id: Optional[str] = None
     create_on: Optional[datetime] = None
     last_access: Optional[datetime] = None
+    user_id = str = None
 
     def __init__(
         self,
@@ -78,6 +79,7 @@ class CacheData:
         session_id=None,
         create_on=None,
         last_access=None,
+        user_id=None
     ):
         self.question = question
         self.answers = []
@@ -94,6 +96,7 @@ class CacheData:
         self.session_id = session_id
         self.create_on = create_on
         self.last_access = last_access
+        self.user_id = user_id
 
 
 class CacheStorage(metaclass=ABCMeta):
@@ -110,7 +113,7 @@ class CacheStorage(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_data_by_id(self, key):
+    def get_data_by_id(self, key, user_id):
         pass
 
     @abstractmethod
@@ -153,6 +156,7 @@ class CacheStorage(metaclass=ABCMeta):
         cache_answer,
         similarity_value,
         cache_delta_time,
+        user_id
     ):
         pass
 
