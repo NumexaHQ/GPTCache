@@ -236,7 +236,7 @@ class MongoStorage(CacheStorage):
             ids.append(self._insert(data))
         return ids
 
-    def get_data_by_id(self, key) -> Optional[CacheData]:
+    def get_data_by_id(self, key, user_id=None) -> Optional[CacheData]:
         qs = self._ques.objects.get(_id=key, deleted=0)
         if qs is None:
             return None
@@ -311,6 +311,7 @@ class MongoStorage(CacheStorage):
         cache_answer,
         similarity_value,
         cache_delta_time,
+        user_id
     ):
         report_data = self._report(
             user_question=user_question,
@@ -319,6 +320,7 @@ class MongoStorage(CacheStorage):
             cache_answer=cache_answer,
             similarity=similarity_value,
             cache_delta_time=cache_delta_time,
+            user_id=user_id
         )
         report_data.save()
 

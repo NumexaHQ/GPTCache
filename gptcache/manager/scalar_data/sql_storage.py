@@ -15,7 +15,7 @@ import_sqlalchemy()
 
 # pylint: disable=C0413
 import sqlalchemy
-from sqlalchemy import func, create_engine, Column, Sequence
+from sqlalchemy import func, create_engine, Column, Sequence, ForeignKey
 from sqlalchemy.types import (
     String,
     DateTime,
@@ -23,7 +23,7 @@ from sqlalchemy.types import (
     Integer,
     Float,
 )
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 DEFAULT_LEN_DOCT = {
@@ -43,6 +43,23 @@ def _get_table_len(config: Dict, column_alias: str) -> int:
 
 def get_models(table_prefix, db_type, table_len_config):
     DynamicBase = declarative_base(class_registry={})  # pylint: disable=C0103
+
+    class UserTable(DynamicBase):
+        """
+        User table
+        """
+
+        __tablename__ = table_prefix + "_user"
+        __table_args__ = {"extend_existing": True}
+
+        if db_type in ("oracle", "duckdb"):
+            user_id_seq = Sequence(f"{__tablename__}_id_seq", start=1)
+            id = Column(Integer, user_id_seq, primary_key=True, autoincrement=True)
+        else:
+            id = Column(Integer, primary_key=True, autoincrement=True)
+        create_on = Column(DateTime, default=datetime.now)
+        user_id = Column(Integer, nullable=False)
+        deleted = Column(Integer, default=0)
 
     class QuestionTable(DynamicBase):
         """
@@ -64,6 +81,12 @@ def get_models(table_prefix, db_type, table_len_config):
         create_on = Column(DateTime, default=datetime.now)
         last_access = Column(DateTime, default=datetime.now)
         embedding_data = Column(LargeBinary, nullable=True)
+        user_id = Column(
+            Integer,
+            ForeignKey(f'{table_prefix}_user.user_id', ondelete='CASCADE'),
+            nullable=True,
+        )
+        user = relationship('UserTable', backref='questions')
         deleted = Column(Integer, default=0)
 
     class AnswerTable(DynamicBase):
@@ -83,6 +106,12 @@ def get_models(table_prefix, db_type, table_len_config):
         answer = Column(
             String(_get_table_len(table_len_config, "answer_answer")), nullable=False
         )
+        user_id = Column(
+            Integer,
+            ForeignKey(f'{table_prefix}_user.user_id', ondelete='CASCADE'),
+            nullable=True,
+        )
+        user = relationship('UserTable', backref='answers')
         answer_type = Column(Integer, nullable=False)
 
     class SessionTable(DynamicBase):
@@ -111,6 +140,12 @@ def get_models(table_prefix, db_type, table_len_config):
             String(_get_table_len(table_len_config, "question_question")),
             nullable=False,
         )
+        user_id = Column(
+            Integer,
+            ForeignKey(f'{table_prefix}_user.user_id', ondelete='CASCADE'),
+            nullable=True,
+        )
+        user = relationship('UserTable', backref='sessions')
 
     class QuestionDepTable(DynamicBase):
         """
@@ -134,6 +169,12 @@ def get_models(table_prefix, db_type, table_len_config):
         dep_data = Column(
             String(_get_table_len(table_len_config, "dep_data")), nullable=False
         )
+        user_id = Column(
+            Integer,
+            ForeignKey(f'{table_prefix}_user.user_id', ondelete='CASCADE'),
+            nullable=True,
+        )
+        user = relationship('UserTable', backref='question_deps')
         dep_type = Column(Integer, nullable=False)
 
     class ReportTable(DynamicBase):
@@ -174,8 +215,14 @@ def get_models(table_prefix, db_type, table_len_config):
             String(_get_table_len(table_len_config, "question_question")),
             nullable=True,
         )
+        user_id = Column(
+            Integer,
+            ForeignKey(f'{table_prefix}_user.user_id', ondelete='CASCADE'),
+            nullable=False,
+        )
+        user = relationship('UserTable', backref='reports')
 
-    return QuestionTable, AnswerTable, QuestionDepTable, SessionTable, ReportTable
+    return UserTable, QuestionTable, AnswerTable, QuestionDepTable, SessionTable, ReportTable
 
 
 class SQLStorage(CacheStorage):
@@ -208,7 +255,7 @@ class SQLStorage(CacheStorage):
         if table_len_config is None:
             table_len_config = {}
         self._url = url
-        self._ques, self._answer, self._ques_dep, self._session, self._report = get_models(
+        self._user, self._ques, self._answer, self._ques_dep, self._session, self._report = get_models(
             table_name, db_type, table_len_config
         )
         self._engine = create_engine(self._url)
@@ -216,6 +263,7 @@ class SQLStorage(CacheStorage):
         self.create()
 
     def create(self):
+        self._user.__table__.create(bind=self._engine, checkfirst=True)
         self._ques.__table__.create(bind=self._engine, checkfirst=True)
         self._answer.__table__.create(bind=self._engine, checkfirst=True)
         self._ques_dep.__table__.create(bind=self._engine, checkfirst=True)
@@ -223,6 +271,11 @@ class SQLStorage(CacheStorage):
         self._report.__table__.create(bind=self._engine, checkfirst=True)
 
     def _insert(self, data: CacheData, session: sqlalchemy.orm.Session) -> Column:
+        user_data = self._user(user_id=data.user_id)
+        q = session.query(self._user.__table__).filter(self._user.user_id == data.user_id)
+        if not session.query(q.exists()).scalar():
+            session.add(user_data)
+            session.flush()
         ques_data = self._ques(
             question=data.question
             if isinstance(data.question, str)
@@ -230,6 +283,7 @@ class SQLStorage(CacheStorage):
             embedding_data=data.embedding_data.tobytes()
             if data.embedding_data is not None
             else None,
+            user_id=data.user_id
         )
         session.add(ques_data)
         session.flush()
@@ -252,6 +306,7 @@ class SQLStorage(CacheStorage):
                 question_id=ques_data.id,
                 answer=answer.answer,
                 answer_type=int(answer.answer_type),
+                user_id=data.user_id
             )
             all_data.append(answer_data)
         session.add_all(all_data)
@@ -262,6 +317,7 @@ class SQLStorage(CacheStorage):
                 session_question=data.question
                 if isinstance(data.question, str)
                 else data.question.content,
+                user_id=data.user_id
             )
             session.add(session_data)
         return ques_data.id
@@ -274,12 +330,13 @@ class SQLStorage(CacheStorage):
             session.commit()
         return ids
 
-    def get_data_by_id(self, key: int) -> Optional[CacheData]:
+    def get_data_by_id(self, key: int, user_id: int = None) -> Optional[CacheData]:
         with self.Session() as session:
             qs = (
                 session.query(self._ques)
                 .filter(self._ques.id == key)
                 .filter(self._ques.deleted == 0)
+                .filter(self._ques.user_id == user_id)
                 .first()
             )
             if qs is None:
@@ -289,6 +346,7 @@ class SQLStorage(CacheStorage):
             ans = (
                 session.query(self._answer.answer, self._answer.answer_type)
                 .filter(self._answer.question_id == qs.id)
+                .filter(self._answer.user_id == user_id)
                 .all()
             )
             deps = (
@@ -298,11 +356,13 @@ class SQLStorage(CacheStorage):
                     self._ques_dep.dep_type,
                 )
                 .filter(self._ques_dep.question_id == qs.id)
+                .filter(self._ques_dep.user_id == user_id)
                 .all()
             )
             session_ids = (
                 session.query(self._session.session_id)
                 .filter(self._session.question_id == qs.id)
+                .filter(self._session.user_id == user_id)
                 .all()
             )
             res_ans = [(item.answer, item.answer_type) for item in ans]
@@ -319,6 +379,7 @@ class SQLStorage(CacheStorage):
                 session_id=session_ids,
                 create_on=qs.create_on,
                 last_access=last_access,
+                user_id=user_id
             )
 
     def get_ids(self, deleted=True):
@@ -384,7 +445,7 @@ class SQLStorage(CacheStorage):
                 query = query.filter(self._session.question_id == key)
             return query.all()
 
-    def report_cache(self, user_question, cache_question, cache_question_id, cache_answer, similarity_value, cache_delta_time):
+    def report_cache(self, user_question, cache_question, cache_question_id, cache_answer, similarity_value, cache_delta_time, user_id):
         with self.Session() as session:
             report_data = self._report(
                 user_question=user_question,
@@ -393,6 +454,8 @@ class SQLStorage(CacheStorage):
                 cache_answer=cache_answer,
                 similarity=similarity_value,
                 cache_delta_time=cache_delta_time,
+                user_id=user_id
+
             )
             session.add(report_data)
             session.commit()

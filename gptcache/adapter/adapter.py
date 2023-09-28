@@ -33,6 +33,7 @@ def adapt(llm_handler, cache_data_convert, update_cache_callback, *args, **kwarg
         raise NotInitError()
     cache_enable = chat_cache.cache_enable_func(*args, **kwargs)
     context = kwargs.pop("cache_context", {})
+    user_id = kwargs.pop("user_id")
     embedding_data = None
     # you want to retry to send the request to chatgpt when the cache is negative
 
@@ -114,6 +115,7 @@ def adapt(llm_handler, cache_data_convert, update_cache_callback, *args, **kwarg
                 search_data,
                 extra_param=context.get("get_scalar_data", None),
                 session=session,
+                user_id=user_id
             )
             if cache_data is None:
                 continue
@@ -221,6 +223,7 @@ def adapt(llm_handler, cache_data_convert, update_cache_callback, *args, **kwarg
                     else "",
                     cache_whole_data[0],
                     round(time.time() - start_time, 6),
+                    user_id
                 )
             return cache_data_convert(return_message)
 
@@ -263,6 +266,7 @@ def adapt(llm_handler, cache_data_convert, update_cache_callback, *args, **kwarg
                     embedding_data,
                     extra_param=context.get("save_func", None),
                     session=session,
+                    user_id=user_id
                 )
                 if (
                     chat_cache.report.op_save.count > 0

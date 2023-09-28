@@ -33,6 +33,7 @@ cache_file_key = ""
 class CacheData(BaseModel):
     prompt: str
     answer: Optional[str] = ""
+    user_id: int
 
 
 @app.get("/")
@@ -42,14 +43,14 @@ async def hello():
 
 @app.post("/put")
 async def put_cache(cache_data: CacheData) -> str:
-    put(cache_data.prompt, cache_data.answer)
+    put(cache_data.prompt, cache_data.answer, user_id=cache_data.user_id)
     return "successfully update the cache"
 
 
 @app.post("/get")
 async def get_cache(cache_data: CacheData) -> CacheData:
-    result = get(cache_data.prompt)
-    return CacheData(prompt=cache_data.prompt, answer=result)
+    result = get(cache_data.prompt, user_id=cache_data.user_id)
+    return CacheData(prompt=cache_data.prompt, answer=result, user_id=cache_data.user_id)
 
 
 @app.post("/flush")

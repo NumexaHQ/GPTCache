@@ -36,6 +36,7 @@ class DataManager(metaclass=ABCMeta):
             answers: List[Any],
             embedding_datas: List[Any],
             session_ids: List[Optional[str]],
+            user_id: str
     ):
         pass
 
@@ -77,6 +78,7 @@ class DataManager(metaclass=ABCMeta):
         cache_answer,
         similarity_value,
         cache_delta_time,
+        user_id
     ):
         pass
 
@@ -136,6 +138,7 @@ class MapDataManager(DataManager):
         answers: List[Any],
         embedding_datas: List[Any],
         session_ids: List[Optional[str]],
+        user_id: str
     ):
         if (
             len(questions) != len(answers)
@@ -272,7 +275,8 @@ class SSDataManager(DataManager):
         """
         session = kwargs.get("session", None)
         session_id = session.name if session else None
-        self.import_data([question], [answer], [embedding_data], [session_id])
+        user_id = kwargs.get("user_id")
+        self.import_data([question], [answer], [embedding_data], [session_id], user_id)
 
     def _process_answer_data(self, answers: Union[Answer, List[Answer]]):
         if isinstance(answers, Answer):
@@ -303,6 +307,7 @@ class SSDataManager(DataManager):
         answers: List[Answer],
         embedding_datas: List[Any],
         session_ids: List[Optional[str]],
+        user_id: str
     ):
         if (
             len(questions) != len(answers)
@@ -326,6 +331,7 @@ class SSDataManager(DataManager):
                     answers=ans,
                     embedding_data=embedding_data.astype("float32"),
                     session_id=session_ids[i],
+                    user_id=user_id
                 )
             )
         ids = self.s.batch_insert(cache_datas)
@@ -339,7 +345,8 @@ class SSDataManager(DataManager):
 
     def get_scalar_data(self, res_data, **kwargs) -> Optional[CacheData]:
         session = kwargs.get("session", None)
-        cache_data = self.s.get_data_by_id(res_data[1])
+        user_id = kwargs.get("user_id")
+        cache_data = self.s.get_data_by_id(res_data[1], user_id=user_id)
         if cache_data is None:
             return None
 
@@ -398,6 +405,7 @@ class SSDataManager(DataManager):
         cache_answer,
         similarity_value,
         cache_delta_time,
+        user_id
     ):
         self.s.report_cache(
             user_question,
@@ -406,6 +414,7 @@ class SSDataManager(DataManager):
             cache_answer,
             similarity_value,
             cache_delta_time,
+            user_id
         )
 
     def close(self):
