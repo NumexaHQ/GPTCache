@@ -1,0 +1,18 @@
+FROM python:3.9.18-slim-bullseye
+
+WORKDIR /app
+
+COPY requirements.txt requirements.txt
+
+RUN pip install -r requirements.txt
+
+RUN pip install --upgrade pip
+
+COPY . .
+
+RUN python setup.py install
+
+EXPOSE 8000
+
+ENTRYPOINT ["gptcache_server", "-s", "0.0.0.0", "-p", "8000"]
+# CMD ["python", "gptcache_server/server.py"]
