@@ -1,18 +1,47 @@
-FROM python:3.9.18-slim-bullseye
+# Preparing gptcache Build
+FROM python:3.9-slim as builder
+
+RUN pip install --upgrade pip >/dev/null 2>&1
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-RUN pip install -r requirements.txt
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --upgrade pip
-
+RUN pip install poetry
 COPY . .
+RUN poetry install
+RUN poetry build
 
-RUN python setup.py install
+# Copying Build
+FROM python:3.9-slim as builder1
+
+RUN pip install --upgrade pip >/dev/null 2>&1
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY --from=builder /app/dist /opt/dist
+
+RUN pip install /opt/dist/gptcache-0.1.42-py3-none-any.whl
+
+# Installing Build
+FROM python:3.9-slim
+
+COPY --from=builder1 /opt/venv /opt/venv
+
+WORKDIR /app
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 EXPOSE 8000
 
 ENTRYPOINT ["gptcache_server", "-s", "0.0.0.0", "-p", "8000"]
-# CMD ["python", "gptcache_server/server.py"]
